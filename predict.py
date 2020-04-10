@@ -11,9 +11,15 @@ from PIL import Image
 
 def load_model():
     model_info = torch.load(args.model_checkpoint)
-    model = model_info['model']
+    #Changed as required to review
+    if(model_info['model_type'] == 'vgg'):
+        model = models.vgg19(pretrained=True)
+    else:
+        model = models.densenet121(pretrained=True)
+    
     model.classifier = model_info['classifier']
     model.load_state_dict(model_info['state_dict'])
+    model.class_to_idx = model_info['class_to_idx']
     return model
 
 def process_image(image):
@@ -32,10 +38,12 @@ def process_image(image):
     new_picture_coords[max_element] = int(256 * aspect_ratio)
     im = im.resize(new_picture_coords)   
     width, height = new_picture_coords
-    left = (width - 244)/2
-    top = (height - 244)/2
-    right = (width + 244)/2
-    bottom = (height + 244)/2
+    #Change according to review
+    size = 224
+    left = (width - size)/2
+    top = (height - size)/2
+    right = (width + size)/2
+    bottom = (height + size)/2
     im = im.crop((left, top, right, bottom))
     np_image = np.array(im)
     np_image = np_image.astype('float64')
@@ -60,7 +68,11 @@ def classify_image(image_path, topk=5):
             model = model.cpu()
         outputs = model(image)
         probs, classes = torch.exp(outputs).topk(topk)
-        probs, classes = probs[0].tolist(), classes[0].add(1).tolist()
+        probs = probs[0].tolist()
+        #Corrected according to review
+        class_to_idefix = model.class_to_idx
+        idx_to_class = {val: key for key, val in class_to_idefix.items()}
+        classes = [idx_to_class[idx] for idx in classes[0].tolist()]
         results = zip(probs,classes)
         return results
 

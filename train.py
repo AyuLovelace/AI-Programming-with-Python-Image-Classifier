@@ -47,7 +47,7 @@ def process_data(data_dir):
     testloaders = torch.utils.data.DataLoader(test_datasets, batch_size=32, shuffle=True)
     with open('cat_to_name.json', 'r') as f:
         cat_to_name = json.load(f)
-    loaders = {'train':trainloaders,'valid':validloaders,'test':testloaders,'labels':cat_to_name}
+    loaders = {'train':trainloaders,'valid':validloaders,'test':testloaders,'labels':cat_to_name, 'class_to_idx': train_datasets.class_to_idx}
     return loaders
 
 def get_data():
@@ -77,13 +77,16 @@ def build_model(data):
     for param in model.parameters():
         param.requires_grad = False
     hidden_units = int(hidden_units)
+    output_node = int(102)
     classifier = nn.Sequential(OrderedDict([
                               ('fc1', nn.Linear(input_node, hidden_units)),
                               ('relu', nn.ReLU()),
-                              ('fc2', nn.Linear(hidden_units, 102)),
+                              ('fc2', nn.Linear(hidden_units, output_node)),
                               ('output', nn.LogSoftmax(dim=1))
                               ]))
     model.classifier = classifier
+    model.class_to_idx = data['class_to_idx']
+    data.update([('model_type', arch_type),('input_node', input_node), ('hidden_units', hidden_units), ('output_node', output_node)])
     return model
 
 def test_accuracy(model,loader,device='cpu'):    
@@ -155,17 +158,23 @@ def train(model,data):
     print('final accuracy on test set: {}'.format(test_result))
     return model
 
-def save_model(model):
+def save_model(model, data):
     print("saving model")
     if (args.save_dir is None):
         save_dir = 'check.pth'
     else:
         save_dir = args.save_dir
+    #Changed as said in Review
     checkpoint = {
                 'model': model.cpu(),
-                'features': model.features,
+                'model_type': data['model_type'],
                 'classifier': model.classifier,
-                'state_dict': model.state_dict()}
+                'input_size': data['input_node'],
+                'hidden_units': data['hidden_units'],
+                'output_size': data['output_node'],
+                'state_dict': model.state_dict(),
+                'class_to_idx': model.class_to_idx
+                }
     torch.save(checkpoint, save_dir)
     return 0
 
@@ -174,7 +183,7 @@ def create_model():
     data = get_data()
     model = build_model(data)
     model = train(model,data)
-    save_model(model)
+    save_model(model,data)
     return None
 
 def parse():
